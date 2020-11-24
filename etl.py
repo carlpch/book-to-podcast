@@ -172,34 +172,38 @@ class nyt_etl(etl_handler):
         request = requests.get(request_url, headers=request_headers)
         request = request.json()
 
-        if request['status'] == "OK":
-            # a temporary list to hold books
-            book_collection = list()
+        try:
+            if request['status'] == "OK":
+                # a temporary list to hold books
+                book_collection = list()
 
-            for book in request['results']:
-                # a temporary dictionary to hold data
-                d = {}
+                for book in request['results']:
+                    # a temporary dictionary to hold data
+                    d = {}
 
-                # some data are located at the outer-level:
-                d['book_type'] = book['list_name']
-                d['bestsellers_date'] = book['bestsellers_date']
-                d['published_date'] = book['published_date']
-                d['weeks_on_list'] = book['weeks_on_list']
+                    # some data are located at the outer-level:
+                    d['book_type'] = book['list_name']
+                    d['bestsellers_date'] = book['bestsellers_date']
+                    d['published_date'] = book['published_date']
+                    d['weeks_on_list'] = book['weeks_on_list']
 
-                # some data are located at the inner-level under 'book_details':
-                inner_columns = ['title', 'author', 'publisher', 'description', 'primary_isbn13', 'primary_isbn10']
-                for col in inner_columns:
-                  d[col] = book['book_details'][0].get(col)
+                    # some data are located at the inner-level under 'book_details':
+                    inner_columns = ['title', 'author', 'publisher', 'description', 'primary_isbn13', 'primary_isbn10']
+                    for col in inner_columns:
+                      d[col] = book['book_details'][0].get(col)
 
-                book_collection.append(d)
+                    book_collection.append(d)
 
-            # set self.data as the newly collected data
-            self.data = pd.DataFrame(book_collection)
+                # set self.data as the newly collected data
+                self.data = pd.DataFrame(book_collection)
 
-        else:
-            print('Error, connection status was not OK.')
-            return None
-
+            else:
+                print('Error, connection status was {}'. format(request['status']))
+                return None
+        except:
+            print("no request status available")
+            print(request)
+            raise
     def psql_update(self):
         conn, cur = self.psql_connect()
         cur.execute(self.psql_create())
