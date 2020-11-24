@@ -151,7 +151,7 @@ class nyt_etl(etl_handler):
                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                                ON CONFLICT (primary_isbn13) DO UPDATE SET weeks_on_list = EXCLUDED.weeks_on_list""")
 
-        self.config = 'database.ini'
+        self.config = '/Users/Carl/_data Science/_project/book to podcast/database.ini'
         
     def psql_create(self):
         return self.create_table
