@@ -1,4 +1,5 @@
 #!/Users/Carl/opt/anaconda3/bin/python
+
 import time
 from etl import nyt_etl
 
