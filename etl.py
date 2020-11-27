@@ -15,6 +15,8 @@ from nltk.corpus import words
 import random
 from random import sample
 
+from langdetect import detect
+
 
 
 class etl_handler(object):
@@ -266,19 +268,50 @@ class episode_etl(bookgraph_etl):
 	
 	def parse_data(self, results):
 		pd_temp = list()
-		cols = ['id', 'name','release_date','description','external_urls', 'images']        
+		cols = ['id', 'name','release_date','description']
+
 		for item in results['episodes']['items']:
-			d = {}
+			def detect_language(text):
+				text = text.replace('\n',' ')
+				text = text.replace("\'",'')
+				# Remove web urls    
+				text = re.sub('http[s]*://\S+', '', text)
+				# Remove phone number
+				text = re.sub('[0-9]{4}[0-9]+', '', text)
+				# Remove email
+				text = re.sub('\S+@\S+', '', text)
+				# Remove hashtags
+				text = re.sub('#\S+', '', text)
+				# Remove repeating space
+				text = re.sub('\s\s+', ' ', text)
+				text = text.strip()
+
+				lang = 'other'
+				
+				try:
+					lang = detect(text)
+				except:
+					lang = 'other'
+
+				return lang
+
 			try:
+				# if 'items' exists, try these operations
+				d = {}
 				for col in cols:
 					d[col] = item[col]
+
 				d['external_urls'] = item['external_urls']['spotify']
 				d['images'] = item['images'][-1]['url']
-				# d['languages'] = item['languages'][0]
+				# print('all okay except lang')
+				d['language'] = detect_language(d['description'])
 				pd_temp.append(d)
 
 			except:
+				print('cannot get column data from Spotify')
+				print(item)
 				continue
+
 		return pd_temp
 	
 	def load_show(self, key='.+', target_rows = 2000, type = 'Show', random_search = False, voc_size = 10):
@@ -291,11 +324,11 @@ class episode_etl(bookgraph_etl):
 		
 		def legal_query(key):
 			temp = []
-			for i in range(0, target_rows, 50):
+			for i in range(0, 2000, 50):
 				if offset % 100 == 0:
 					results = sp.search(key, market = 'US', limit = 50, offset = i, type = type)
 					parsed = self.parse_data(results)
-					print('Retrieving rows {}/{} with key {} -- {} items'.format(i, target_rows, key, len(parsed)))
+					print('Retrieving rows {}/2000 with key {} -- {} items'.format(i, key, len(parsed)))
 					temp += parsed
 					if len(parsed) == 0:
 						break
@@ -306,16 +339,36 @@ class episode_etl(bookgraph_etl):
 		
 		if not random_search:
 			loaded_data += legal_query(key)
-			
+		
+		# in case of random search:
 		else:
-			candidates = sample(words.words(), voc_size) + ['.+']
-			while len(candidates) > 0:
-				rdn_key = candidates.pop(candidates.index(random.choice(candidates)))
+			# create a cpy of row target for this session (default 2000)
+			session_target = target_rows
+			# candidates = sample(words.words(), voc_size) + ['.+', 'data science']
+
+			while session_target > 0:
+			# while len(candidates) > 0:
+
+				# rdn_key = candidates.pop(candidates.index(random.choice(candidates)))
+				rdn_key = sample(words.words(), 1)[0]
 				new_rows = legal_query(rdn_key)
+
 				count += len(new_rows)
 				loaded_data += new_rows
 
+				try:
+					english_rows = len([i for i in new_rows if i['language'] == 'en'])
+				except:
+					print([i['language'] for i in new_rows])
+
+				session_target -= english_rows
+				print('{} english episodes collected in this round'.format(english_rows))
+
+
+
 		self.data = pd.DataFrame(loaded_data)
+		self.drop_na()
+		self.drop_duplicates()
 		return None
 	
 	def drop_duplicates(self):
@@ -337,3 +390,38 @@ class episode_etl(bookgraph_etl):
 
 
 
+{ 'id': '05DP3HTpGsOQ0nhoYOVroZ', 
+  'name': 'Today’s Show: new COVID-19 restrictions in Alberta, Diane Francis, Michelle Rempel Garner, the use of strychnine in Alberta, and Cochrane’s potential River Wave Park', 
+  'release_date': '2020-11-25',
+  'description': 'Guests: Rachel Notley, Leader, Alberta NDP, MLA Edmonton-Strathcona, Diane Francis, \
+                Editor-at-Large, National Post, MP Pat Kelly, Conservative Shadow Minister for Small Business and Western Economic Development, \
+                Conservative Health critic MP Michelle Rempel Garner, Lisa Dahlseide, Education Director for the Cochrane Ecological Institute, \
+                and Jo-Anne Oucharek, Executive director of Cochrane Tourism  See omnystudio.com/listener for privacy information.', 
+
+
+'audio_preview_url': 'https://p.scdn.co/mp3-preview/d7c0d3a657e7cf9ad27a82f21b4d27f80b50bdfc', 
+
+ 'duration_ms': 7001365, 
+ 'explicit': False, 
+ 'external_urls': {'spotify': 'https://open.spotify.com/episode/05DP3HTpGsOQ0nhoYOVroZ'}, 
+ 'href': 'https://api.spotify.com/v1/episodes/05DP3HTpGsOQ0nhoYOVroZ', 
+ 'images': [
+ {'height': 640, 'url': 'https://i.scdn.co/image/a2cdaf4a2ab82b6929b2451193ffbd71a4e86c5e', 'width': 640}, 
+ {'height': 300, 'url': 'https://i.scdn.co/image/98d9a64eab40484e17149cb80581393f2da6a87f', 'width': 300}, 
+ {'height': 64, 'url': 'https://i.scdn.co/image/86231ca97d7a0f9ab76fa88c99e2a9773e7764af', 'width': 64}
+ ], 
+
+
+
+ 'is_externally_hosted': False, 
+ 'is_playable': True, 
+ 'language': 'en-US', 
+ 'languages': ['en-US'], 
+ 
+ 
+ 'release_date_precision': 'day', 
+ 'type': 'episode', 
+ 'uri': 'spotify:episode:05DP3HTpGsOQ0nhoYOVroZ'}
+
+
+cols = ['id', 'name','release_date','description', 'images']
